@@ -84,6 +84,3 @@ module Rubyspeed
     end
   end
 end
-
-def Foo
-end

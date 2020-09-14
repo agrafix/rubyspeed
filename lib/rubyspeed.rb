@@ -78,14 +78,11 @@ module Rubyspeed
 
     def compile_c(code)
       Class.new do
-        def self.name
-          'Foo2'
-        end
-        inline do |builder|
+        inline('Foo3') do |builder|
           builder.c(code)
         end
       end
-      Object.const_get('Foo2')
+      Object.const_get('Foo3')
     end
   end
 end

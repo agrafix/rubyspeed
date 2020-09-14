@@ -200,15 +200,6 @@ module Inline
 
   warn "RubyInline v #{VERSION}" if $DEBUG
 
-  def self.register cls
-    registered_inline_classes << cls
-    registered_inline_classes.uniq!
-  end
-
-  def self.registered_inline_classes
-    @@registered_inline_classes ||= []
-  end
-
   # rootdir can be forced using INLINEDIR variable
   # if not defined, it should store in user HOME folder
   #
@@ -454,13 +445,7 @@ module Inline
       ext << "  __declspec(dllexport)" if WINDOZE
       ext << "  void Init_#{module_name}() {"
       ext << "    VALUE c = rb_cObject;"
-
-      # TODO: use rb_class2path
-      # ext << "    VALUE c = rb_path2class(#{@mod.name.inspect});"
-      ext << @mod.name.split("::").map { |n|
-        #"    c = rb_const_get(c, rb_intern(\"#{n}\"));"
-        "     c = rb_define_class(\"Foo2\", c);"
-      }.join("\n")
+      ext << "    c = rb_define_class(\"#{@target_class}\", c);"
 
       ext << nil
 
@@ -469,7 +454,7 @@ module Inline
         arity, singleton, method_name = @sig[name]
         if singleton then
           if method_name == 'allocate' then
-            raise "#{@mod}::allocate must have an arity of zero" if arity > 0
+            raise "#{@target_class}::allocate must have an arity of zero" if arity > 0
             ext << "    rb_define_alloc_func(c, (VALUE(*)(VALUE))#{name});"
             next
           end
@@ -495,7 +480,7 @@ module Inline
 
     def module_name
       unless defined? @module_name then
-        module_name = @mod.name.gsub('::','__')
+        module_name = @target_class.gsub('::','__')
         md5 = Digest::MD5.new
         @pre.each { |m| md5 << m.to_s }
         @sig.keys.sort_by { |x| x.to_s }.each { |m| md5 << m.to_s }
@@ -511,8 +496,8 @@ module Inline
       @so_name
     end
 
-    attr_reader :rb_file, :mod
-    attr_writer :mod
+    attr_reader :rb_file, :target_class
+    attr_writer :target_class
     attr_accessor :src, :pre, :sig, :flags, :libs, :init_extra
 
     ##
@@ -521,9 +506,7 @@ module Inline
 
     attr_accessor :struct_name
 
-    def initialize(mod)
-      raise ArgumentError, "Class/Module arg is required" unless Module === mod
-      # new (but not on some 1.8s) -> inline -> real_caller|eval
+    def initialize(target_class)
       stack = caller
       meth = stack.shift until meth =~ /in .(inline|test_|setup)/ or stack.empty?
       raise "Couldn't discover caller" if stack.empty?
@@ -533,7 +516,7 @@ module Inline
       real_caller = $1
       @rb_file = File.expand_path real_caller
 
-      @mod = mod
+      @target_class = target_class
       @pre = []
       @src = []
       @inc = []
@@ -952,9 +935,7 @@ class Module
   # language/builder used is C, but can be specified with the +lang+
   # parameter.
 
-  def inline(lang = :C, options={})
-    Inline.register self
-
+  def inline(target_class, lang = :C, options={})
     case options
     when TrueClass, FalseClass then
       warn "WAR\NING: 2nd argument to inline is now a hash, changing to {:testing=>#{options}}" unless options
@@ -972,7 +953,7 @@ class Module
                       Inline.const_get(lang)
                     end
 
-    builder = builder_class.new self
+    builder = builder_class.new(target_class)
 
     yield builder
 

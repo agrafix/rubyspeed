@@ -37,4 +37,13 @@ class RubyspeedTest < Minitest::Test
     c = Rubyspeed.generate_c(ast)
     assert_equal("int add_two_method(int x){return ((2) + (x));}", c)
   end
+
+  def test_compile_c
+    src = Rubyspeed.retrieve_source(method(:add_two_method))
+    ast = Rubyspeed.parse_ast(src)
+    c = Rubyspeed.generate_c(ast)
+    compiled = Rubyspeed.compile_c(c)
+    result = compiled.new.add_two_method(5)
+    assert_equal(7, result)
+  end
 end

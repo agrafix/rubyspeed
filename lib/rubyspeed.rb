@@ -3,6 +3,8 @@
 require 'method_source'
 require 'ripper'
 
+require_relative './inline'
+
 module Rubyspeed
   VERSION = '0.0.1'
 
@@ -73,5 +75,20 @@ module Rubyspeed
 
       out
     end
+
+    def compile_c(code)
+      Class.new do
+        def self.name
+          'Foo2'
+        end
+        inline do |builder|
+          builder.c(code)
+        end
+      end
+      Object.const_get('Foo2')
+    end
   end
+end
+
+def Foo
 end

@@ -458,7 +458,8 @@ module Inline
       # TODO: use rb_class2path
       # ext << "    VALUE c = rb_path2class(#{@mod.name.inspect});"
       ext << @mod.name.split("::").map { |n|
-        "    c = rb_const_get(c, rb_intern(\"#{n}\"));"
+        #"    c = rb_const_get(c, rb_intern(\"#{n}\"));"
+        "     c = rb_define_class(\"Foo2\", c);"
       }.join("\n")
 
       ext << nil

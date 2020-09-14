@@ -12,26 +12,39 @@ module Rubyspeed
   module Compiles
     def method_added(name)
       super(name)
-      Rubyspeed::Internal.handle_new_method(self, name)
+      Rubyspeed::Internal.handle_new_method(self, name, singleton: false)
+    end
+
+    def singleton_method_added(name)
+      super(name)
+      Rubyspeed::Internal.handle_new_method(self, name, singleton: true)
     end
 
     def compile!
+      puts 'compile'
       Thread.current[:rubyspeed_should_compile] = true
     end
   end
 
   module Internal
-    def self.handle_new_method(target, name)
+    def self.handle_new_method(target, name, singleton:)
+      target_name = target.name
       if !Thread.current[:rubyspeed_should_compile]
         return
       end
       Thread.current[:rubyspeed_should_compile] = false
 
+      target = singleton ? target.singleton_class : target
       original_impl = target.instance_method(name)
       source = retrieve_source(original_impl)
       ast = parse_ast(source)
       c = generate_c(ast)
-      compiled = compile_c("Rubyspeed_#{Digest::MD5.hexdigest(source)}", c).new
+
+      md5 = Digest::MD5.new
+      md5 << target_name
+      md5 << source
+
+      compiled = compile_c("Rubyspeed_#{md5.hexdigest}", c).new
 
       # TODO: keep visibility etc.
       target.send(:define_method, name) do |*args, &blk|
@@ -72,7 +85,8 @@ module Rubyspeed
       out = ''
       raise "Must start at :program node" if sexp[0] != :program
       toplevel = sexp[1]
-      raise "Must only contain single top level definition" if toplevel.length != 1 || toplevel[0][0] != :def
+      raise "Must only contain single top level definition" if toplevel.length != 1 || (toplevel[0][0] != :def && toplevel[0][0] != :defs)
+      # singleton = toplevel[0][0] == :defs
       definition = toplevel[0].drop(1)
 
       # TODO: this whole thing doesn't really assume a generic ast block, very hard-coded atm

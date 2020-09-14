@@ -66,8 +66,25 @@ class RubyspeedTest < Minitest::Test
     end
   end
 
-  def test_decorator
+  def test_class_decorator
     c = TestClass.new
     assert_equal(c.add_two_method(2), c.add_two_method_ruby(2))
+  end
+
+  module TestModule
+    extend(Rubyspeed::Compiles)
+
+    compile!
+    def self.add_two_method(x)
+      x + 2
+    end
+
+    def self.add_two_method_ruby(x)
+      x + 2
+    end
+  end
+
+  def test_module_decorator
+    assert_equal(TestModule.add_two_method(2), TestModule.add_two_method_ruby(2))
   end
 end

@@ -12,7 +12,7 @@ class RubyspeedTest < Minitest::Test
   end
 
   def test_retrieve_source
-    src = Rubyspeed.retrieve_source(method(:add_two_method))
+    src = Rubyspeed::Internal.retrieve_source(method(:add_two_method))
     assert_equal(
       "  def add_two_method(x)\n" +
       "    2 + x\n" +
@@ -21,8 +21,8 @@ class RubyspeedTest < Minitest::Test
   end
 
   def test_parse_ast
-    src = Rubyspeed.retrieve_source(method(:add_two_method))
-    ast = Rubyspeed.parse_ast(src)
+    src = Rubyspeed::Internal.retrieve_source(method(:add_two_method))
+    ast = Rubyspeed::Internal.parse_ast(src)
     assert_equal(
       [:program,
        [[:def,
@@ -35,23 +35,23 @@ class RubyspeedTest < Minitest::Test
   end
 
   def test_generate_c
-    src = Rubyspeed.retrieve_source(method(:add_two_method))
-    ast = Rubyspeed.parse_ast(src)
-    c = Rubyspeed.generate_c(ast)
+    src = Rubyspeed::Internal.retrieve_source(method(:add_two_method))
+    ast = Rubyspeed::Internal.parse_ast(src)
+    c = Rubyspeed::Internal.generate_c(ast)
     assert_equal("int add_two_method(int x){return ((2) + (x));}", c)
   end
 
   def test_compile_c
-    src = Rubyspeed.retrieve_source(method(:add_two_method))
-    ast = Rubyspeed.parse_ast(src)
-    c = Rubyspeed.generate_c(ast)
-    compiled = Rubyspeed.compile_c("TestCompileC", c)
+    src = Rubyspeed::Internal.retrieve_source(method(:add_two_method))
+    ast = Rubyspeed::Internal.parse_ast(src)
+    c = Rubyspeed::Internal.generate_c(ast)
+    compiled = Rubyspeed::Internal.compile_c("TestCompileC", c)
     result = compiled.new.add_two_method(5)
     assert_equal(7, result)
   end
 
   #
-  # Decorator tests
+  # Public API tests
   #
   class TestClass
     extend(Rubyspeed::Compiles)

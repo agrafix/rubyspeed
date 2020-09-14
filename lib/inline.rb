@@ -188,9 +188,9 @@ end
 module Inline
   VERSION = "3.12.5"
 
-  WINDOZE  = /mswin|mingw/ =~ RUBY_PLATFORM
+  WINDOWS  = /mswin|mingw/ =~ RUBY_PLATFORM
   RUBINIUS = defined? RUBY_ENGINE
-  DEV_NULL = (WINDOZE ? 'nul'      : '/dev/null')
+  DEV_NULL = (WINDOWS ? 'nul'      : '/dev/null')
   GEM      = 'gem'
   RAKE     = if RUBINIUS then
                File.join(Gem.bindir, 'rake')
@@ -219,7 +219,7 @@ module Inline
   def self.rootdir
     env = ENV['INLINEDIR'] || ENV['HOME']
 
-    if env.nil? and WINDOZE then
+    if env.nil? and WINDOWS then
       # try HOMEDRIVE + HOMEPATH combination
       if ENV['HOMEDRIVE'] && ENV['HOMEPATH'] then
         env = ENV['HOMEDRIVE'] + ENV['HOMEPATH']
@@ -442,7 +442,7 @@ module Inline
       ext << "#ifdef __cplusplus"
       ext << "extern \"C\" {"
       ext << "#endif"
-      ext << "  __declspec(dllexport)" if WINDOZE
+      ext << "  __declspec(dllexport)" if WINDOWS
       ext << "  void Init_#{module_name}() {"
       ext << "    VALUE c = rb_cObject;"
       ext << "    c = rb_define_class(\"#{@target_class}\", c);"
@@ -682,25 +682,25 @@ VALUE #{method}_equals(VALUE value) {
                             nil
                           end
 
-          windoze = WINDOZE and RUBY_PLATFORM =~ /mswin/
-          sane = ! windoze
+          windows = WINDOWS and RUBY_PLATFORM =~ /mswin/
+          non_windows = ! windows
           cmd = [ RbConfig::CONFIG['LDSHARED'],
                   flags,
                   "-Ofast",
-                  (RbConfig::CONFIG['DLDFLAGS']         if sane),
-                  (RbConfig::CONFIG['CCDLFLAGS']        if sane),
+                  (RbConfig::CONFIG['DLDFLAGS']         if non_windows),
+                  (RbConfig::CONFIG['CCDLFLAGS']        if non_windows),
                   RbConfig::CONFIG['CFLAGS'],
-                  (RbConfig::CONFIG['LDFLAGS']          if sane),
+                  (RbConfig::CONFIG['LDFLAGS']          if non_windows),
                   '-I', hdrdir,
                   config_hdrdir,
                   '-I', RbConfig::CONFIG['includedir'],
-                  ("-L#{RbConfig::CONFIG['libdir']}"    if sane),
-                  (['-o', so_name.inspect]              if sane),
+                  ("-L#{RbConfig::CONFIG['libdir']}"    if non_windows),
+                  (['-o', so_name.inspect]              if non_windows),
                   File.expand_path(src_name).inspect,
                   libs,
-                  crap_for_windoze,
-                  (RbConfig::CONFIG['LDFLAGS']          if windoze),
-                  (RbConfig::CONFIG['CCDLFLAGS']        if windoze),
+                  cfg_for_windows,
+                  (RbConfig::CONFIG['LDFLAGS']          if windows),
+                  (RbConfig::CONFIG['CCDLFLAGS']        if windows),
                 ].compact.join(' ')
 
           # odd compilation error on clang + freebsd 10. Ruby built w/ rbenv.
@@ -713,7 +713,7 @@ VALUE #{method}_equals(VALUE value) {
 
           warn "Building #{so_name} with '#{cmd}'" if $DEBUG
 
-          result = if WINDOZE
+          result = if WINDOWS
                      Dir.chdir(Inline.directory) { `#{cmd}` }
                    else
                      `#{cmd}`
@@ -731,7 +731,7 @@ VALUE #{method}_equals(VALUE value) {
           # build or compiler.
           # Errors from this point should be ignored if RbConfig::CONFIG['arch']
           # (RUBY_PLATFORM) matches 'i386-mswin32_80'
-          if WINDOZE and RUBY_PLATFORM =~ /_80$/ then
+          if WINDOWS and RUBY_PLATFORM =~ /_80$/ then
             Dir.chdir Inline.directory do
               cmd = "mt /manifest lib.so.manifest /outputresource:so.dll;#2"
               warn "Embedding manifest with '#{cmd}'" if $DEBUG
@@ -752,10 +752,9 @@ VALUE #{method}_equals(VALUE value) {
     end # def build
 
     ##
-    # Returns extra compilation flags for windoze platforms. Ugh.
+    # Returns extra compilation flags for windows platforms.
 
-    def crap_for_windoze
-      # gawd windoze land sucks
+    def cfg_for_windows
       case RUBY_PLATFORM
       when /mswin32/ then
         " -link /OUT:\"#{self.so_name}\" /LIBPATH:\"#{RbConfig::CONFIG['libdir']}\" /DEFAULTLIB:\"#{RbConfig::CONFIG['LIBRUBY']}\" /INCREMENTAL:no /EXPORT:Init_#{module_name}"

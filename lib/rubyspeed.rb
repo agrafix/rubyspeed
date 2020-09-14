@@ -21,7 +21,6 @@ module Rubyspeed
     end
 
     def compile!
-      puts 'compile'
       Thread.current[:rubyspeed_should_compile] = true
     end
   end

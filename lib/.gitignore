@@ -1,0 +1,9 @@
+.DS_Store
+.idea
+*.log
+tmp/
+
+.ruby-version
+.bundle
+vendor
+coverage

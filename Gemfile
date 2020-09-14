@@ -1,0 +1,5 @@
+source 'https://rubygems.org'
+gem 'rake'
+gem 'rubocop'
+gem 'minitest'
+gem 'method_source'

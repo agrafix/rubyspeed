@@ -1,5 +1,7 @@
 # Rubyspeed
 
+_Work in progress._
+
 Welcome to Rubyspeed. Right now, Rubyspeed is a very early proof of concept that allows annotating method declarations to automatically be compiled to C. Here's an example:
 
 ``` ruby

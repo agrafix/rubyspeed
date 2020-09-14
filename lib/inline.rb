@@ -686,6 +686,7 @@ VALUE #{method}_equals(VALUE value) {
           sane = ! windoze
           cmd = [ RbConfig::CONFIG['LDSHARED'],
                   flags,
+                  "-Ofast",
                   (RbConfig::CONFIG['DLDFLAGS']         if sane),
                   (RbConfig::CONFIG['CCDLFLAGS']        if sane),
                   RbConfig::CONFIG['CFLAGS'],

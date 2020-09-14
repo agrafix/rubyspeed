@@ -4,6 +4,9 @@ require 'minitest/autorun'
 require_relative '../lib/rubyspeed'
 
 class RubyspeedTest < Minitest::Test
+  #
+  # Internals tests
+  #
   def add_two_method(x)
     2 + x
   end
@@ -42,8 +45,29 @@ class RubyspeedTest < Minitest::Test
     src = Rubyspeed.retrieve_source(method(:add_two_method))
     ast = Rubyspeed.parse_ast(src)
     c = Rubyspeed.generate_c(ast)
-    compiled = Rubyspeed.compile_c(c)
+    compiled = Rubyspeed.compile_c("TestCompileC", c)
     result = compiled.new.add_two_method(5)
     assert_equal(7, result)
+  end
+
+  #
+  # Decorator tests
+  #
+  class TestClass
+    extend(Rubyspeed::Compiles)
+
+    compile!
+    def add_two_method(x)
+      x + 2
+    end
+
+    def add_two_method_ruby(x)
+      x + 2
+    end
+  end
+
+  def test_decorator
+    c = TestClass.new
+    assert_equal(c.add_two_method(2), c.add_two_method_ruby(2))
   end
 end

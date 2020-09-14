@@ -929,13 +929,13 @@ VALUE #{method}_equals(VALUE value) {
   end # class Inline::C
 end # module Inline
 
-class Module
+module Inliner
   ##
   # Extends the Module class to have an inline method. The default
   # language/builder used is C, but can be specified with the +lang+
   # parameter.
 
-  def inline(target_class, lang = :C, options={})
+  def self.inline(target_class, lang = :C, options={})
     case options
     when TrueClass, FalseClass then
       warn "WAR\NING: 2nd argument to inline is now a hash, changing to {:testing=>#{options}}" unless options

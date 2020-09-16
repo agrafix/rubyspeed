@@ -26,6 +26,12 @@ module Rubyspeed
     end
   end
 
+  module T
+    def self.int(x)
+      x
+    end
+  end
+
   module Internal
     def self.handle_new_method(target, name, singleton:)
       target_name = target.name

@@ -1,0 +1,1 @@
+int example_add(int x){return ((x) + (1));}

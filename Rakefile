@@ -14,6 +14,7 @@ task default: %w[test lint]
 
 task :test do
   ruby 'test/rubyspeed_test.rb'
+  ruby 'test/rubyspeed/c_test.rb'
 end
 
 task :bench do

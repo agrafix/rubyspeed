@@ -37,14 +37,14 @@ class RubyspeedTest < Minitest::Test
   def test_generate_c
     src = Rubyspeed::Internal.retrieve_source(method(:add_two_method))
     ast = Rubyspeed::Internal.parse_ast(src)
-    c = Rubyspeed::Internal.generate_c(ast)
+    c = Rubyspeed::Internal::C.generate_c(ast)
     assert_equal("int add_two_method(int x){return ((2) + (x));}", c)
   end
 
   def test_compile_c
     src = Rubyspeed::Internal.retrieve_source(method(:add_two_method))
     ast = Rubyspeed::Internal.parse_ast(src)
-    c = Rubyspeed::Internal.generate_c(ast)
+    c = Rubyspeed::Internal::C.generate_c(ast)
     compiled = Rubyspeed::Internal.compile_c("TestCompileC", c)
     result = compiled.new.add_two_method(5)
     assert_equal(7, result)

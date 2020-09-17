@@ -10,14 +10,25 @@ require 'rubyspeed'
 class TestClass
   extend(Rubyspeed::Compiles)
     
-  compile!
-  def add_two_method(x)
-    x + 2
+  compile!(params: [Rubyspeed::T.array(Rubyspeed::T.int), Rubyspeed::T.array(Rubyspeed::T.int)])
+  def self.dot(a, b)
+    c = Rubyspeed::Let.int(0)
+    a.each_with_index do |a_val, idx|
+      c += a_val * b[idx]
+    end
+    c
   end
 end
 ```
 
-What this will do is replace the `add_two_method` with a compiled C implementation.
+What this will do is replace the `dot` with a compiled C implementation, that runs quite a bit faster than the native ruby version:
+
+```bash
+$ rake bench
+               user     system      total        real
+compiled   0.000021   0.000004   0.000025 (  0.000018)
+ruby       0.000105   0.000002   0.000107 (  0.000103)
+```
 
 ## Who does this work?
 _this section needs some work_

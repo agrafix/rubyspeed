@@ -105,8 +105,11 @@ module Rubyspeed
           body_expr = expr_seq(body[1], should_return: false)
 
           # TODO: mangle i due to nested loop
-          out = "for (int i = 0; i < rb_array_len(#{tgt}); i++) {"
-          out += "VALUE #{param_name} = rb_ary_entry(#{tgt},i);"
+          # TODO: this hard codes that the values of the parameter are ints
+          out = ""
+          out += "long len = rb_array_len(#{tgt});"
+          out += "for (int i = 0; i < len; i++) {"
+          out += "int #{param_name} = FIX2INT(rb_ary_entry(#{tgt},i));"
           out += body_expr
           out += "}"
 
@@ -114,15 +117,6 @@ module Rubyspeed
           out
         else
           print(sexp)
-          [:method_add_block,
-           [:call, [:var_ref, [:@ident, "arr", [4, 4]]], [:@period, ".", [4, 7]], [:@ident, "each", [4, 8]]],
-           [:do_block,
-            [:block_var,
-             [:params, [[:@ident, "el", [4, 17]]], nil, nil, nil, nil, nil, nil],
-             false],
-            [:bodystmt,
-             [[:opassign, [:var_field, [:@ident, "sum", [5, 6]]], [:@op, "+=", [5, 10]], [:var_ref, [:@ident, "el", [5, 13]]]]],
-             nil, nil, nil]]]
           raise "Unknown type #{type}"
         end
       end
@@ -168,10 +162,6 @@ module Rubyspeed
             out += "}"
           end
         end
-
-        puts ''
-        print(out)
-        puts ''
         out
       end
     end

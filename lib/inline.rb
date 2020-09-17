@@ -250,7 +250,7 @@ module Inline
     unless defined? @@directory then
       version = "#{Gem.ruby_engine}-#{RbConfig::CONFIG['ruby_version']}"
 
-      @@directory = File.join(self.rootdir, ".ruby_inline", version)
+      @@directory = File.join(self.rootdir, ".rubyspeed_cache", version)
     end
 
     Dir.assert_secure @@directory
@@ -483,6 +483,7 @@ module Inline
         module_name = @target_class.gsub('::','__')
         md5 = Digest::MD5.new
         @pre.each { |m| md5 << m.to_s }
+        @src.each { |s| md5 << s }
         @sig.keys.sort_by { |x| x.to_s }.each { |m| md5 << m.to_s }
         @module_name = "Inline_#{module_name}_#{md5}"
       end

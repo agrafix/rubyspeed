@@ -34,7 +34,7 @@ class RubyspeedTestC < Minitest::Test
   def example_dot(a, b)
     c = Rubyspeed::Let.int(0)
     a.each_with_index do |a_val, idx|
-      c += a_val + b[idx]
+      c += a_val * b[idx]
     end
     c
   end

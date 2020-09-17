@@ -10,7 +10,7 @@ module BenchTestModule
   def self.dot(a, b)
     c = Rubyspeed::Let.int(0)
     a.each_with_index do |a_val, idx|
-      c += a_val + b[idx]
+      c += a_val * b[idx]
     end
     c
   end
@@ -18,7 +18,7 @@ module BenchTestModule
   def self.dot_rb(a, b)
     c = Rubyspeed::Let.int(0)
     a.each_with_index do |a_val, idx|
-      c += a_val + b[idx]
+      c += a_val * b[idx]
     end
     c
   end

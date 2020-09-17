@@ -49,6 +49,12 @@ module Rubyspeed
           end
         elsif type == :var_ref || type == :var_field
           generate_c_expr(sexp[1], should_return: should_return)
+        elsif type == :aref
+          var = generate_c_expr(sexp[1], should_return: false)
+          ref = generate_c_expr(sexp[2], should_return: false)
+          # TODO: is this correct? this only works for arrays
+          # TODO: we assume the value is an int
+          "#{ret}FIX2INT(rb_ary_entry(#{var}, #{ref}))"
         elsif type == :opassign
           lhs = generate_c_expr(sexp[1], should_return: false)
           op = generate_c_expr(sexp[2], should_return: false)
@@ -72,10 +78,10 @@ module Rubyspeed
             generate_c_expr(c, should_return: false)
           end.join('')
           lhs_ty =
-            if call_target == "Rubyspeed_T->int"
+            if call_target == "Rubyspeed_Let->int"
               "int"
             else
-              raise "Unknown #{lhs_ty} type"
+              raise "Unknown #{call_target} call target"
             end
           rhs_value = generate_c_expr(rhs[2], should_return: false)
           ret_helper = should_return ? "; return #{lhs}" : ""
@@ -91,7 +97,8 @@ module Rubyspeed
           "else { #{body}  }"
         elsif type == :method_add_block
           tgt, method = get_method_call(sexp[1])
-          raise "Unknown method #{method}" if method != "each"
+          raise "Unknown method #{method}" if method != "each" && method != "each_with_index"
+          has_index = method == "each_with_index"
           do_block = sexp[2]
           raise "Expecting do block" if do_block[0] != :do_block
 
@@ -99,6 +106,9 @@ module Rubyspeed
           block_var = do_block[1]
           raise "Expecting block_var" if block_var[0] != :block_var
           param_name = block_var[1][1][0][1]
+          if has_index
+            index_name = block_var[1][1][1][1]
+          end
 
           body = do_block[2]
           raise "Expected body" if body[0] != :bodystmt
@@ -109,6 +119,9 @@ module Rubyspeed
           out = ""
           out += "long len = rb_array_len(#{tgt});"
           out += "for (int i = 0; i < len; i++) {"
+          if has_index
+            out += "int #{index_name} = i;";
+          end
           out += "int #{param_name} = FIX2INT(rb_ary_entry(#{tgt},i));"
           out += body_expr
           out += "}"
@@ -121,7 +134,7 @@ module Rubyspeed
         end
       end
 
-      def self.generate_c(sexp, arg_types: nil)
+      def self.generate_c(sexp, arg_types:)
         # TODO: this is likely better written with a library like oggy/cast
         out = ''
         raise "Must start at :program node" if sexp[0] != :program
@@ -143,13 +156,7 @@ module Rubyspeed
           if type == :paren
             i = 0
             param_names = val[1].map do |param|
-              # TODO: we need to know the parameter type
-              ty =
-                if arg_types
-                  arg_types[i]
-                else
-                  "int"
-                end
+              ty = arg_types[i]
               i += 1
               "#{ty} #{generate_c_expr(param, should_return: false)}"
             end

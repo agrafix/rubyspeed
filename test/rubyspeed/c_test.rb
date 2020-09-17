@@ -9,7 +9,7 @@ class RubyspeedTestC < Minitest::Test
   def example_add(x)
     x + 1
   end
-  TESTS.push(name: :example_add, args: [1], arg_types: ["int"])
+  TESTS.push(name: :example_add, args: [1], arg_types: [Rubyspeed::T.int])
 
   def example_branch(flag, x)
     if flag > 10
@@ -20,16 +20,25 @@ class RubyspeedTestC < Minitest::Test
       0
     end
   end
-  TESTS.push({name: :example_branch, args: [10, 10], arg_types: ["int", "int"]})
+  TESTS.push({name: :example_branch, args: [10, 10], arg_types: [Rubyspeed::T.int, Rubyspeed::T.int]})
 
   def example_loop(arr)
-    sum = Rubyspeed::T.int(0)
+    sum = Rubyspeed::Let.int(0)
     arr.each do |el|
       sum += el
     end
     sum
   end
-  TESTS.push({name: :example_loop, args: [[1, 2]], arg_types: ["VALUE"]})
+  TESTS.push({name: :example_loop, args: [[1, 2]], arg_types: [Rubyspeed::T::array(Rubyspeed::T.int)]})
+
+  def example_dot(a, b)
+    c = Rubyspeed::Let.int(0)
+    a.each_with_index do |a_val, idx|
+      c += a_val + b[idx]
+    end
+    c
+  end
+  TESTS.push({name: :example_dot, args: [[1, 2], [3, 4]], arg_types: [Rubyspeed::T::array(Rubyspeed::T.int), Rubyspeed::T::array(Rubyspeed::T.int)]})
 
   TESTS.each do |test|
     define_method "test_#{test[:name]}" do

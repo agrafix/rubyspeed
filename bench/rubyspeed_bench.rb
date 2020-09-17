@@ -6,21 +6,32 @@ require 'benchmark'
 module BenchTestModule
   extend(Rubyspeed::Compiles)
 
-  compile!
-  def self.add_two_method(x)
-    x * 5 + 2
+  compile!(params: [Rubyspeed::T.array(Rubyspeed::T.int), Rubyspeed::T.array(Rubyspeed::T.int)])
+  def self.dot(a, b)
+    c = Rubyspeed::Let.int(0)
+    a.each_with_index do |a_val, idx|
+      c += a_val + b[idx]
+    end
+    c
   end
 
-  def self.add_two_method_ruby(x)
-    x * 5 + 2
+  def self.dot_rb(a, b)
+    c = Rubyspeed::Let.int(0)
+    a.each_with_index do |a_val, idx|
+      c += a_val + b[idx]
+    end
+    c
   end
 end
 
-if BenchTestModule.add_two_method(100) != BenchTestModule.add_two_method_ruby(100)
+INPUT_A = (3000..4000).to_a
+INPUT_B = (4000..5000).to_a
+
+if BenchTestModule.dot(INPUT_A, INPUT_B) != BenchTestModule.dot_rb(INPUT_A, INPUT_B)
   puts "Wrong code"
 end
 
 Benchmark.bmbm(7) do |x|
-  x.report("compiled") { BenchTestModule.add_two_method(100) }
-  x.report("ruby") { BenchTestModule.add_two_method_ruby(100) }
+  x.report("compiled") { BenchTestModule.dot(INPUT_A, INPUT_B) }
+  x.report("ruby") { BenchTestModule.dot_rb(INPUT_A, INPUT_B) }
 end

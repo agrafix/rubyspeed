@@ -21,12 +21,22 @@ module Rubyspeed
       Rubyspeed::Internal.handle_new_method(self, name, singleton: true)
     end
 
-    def compile!
-      Thread.current[:rubyspeed_should_compile] = true
+    def compile!(params:)
+      Thread.current[:rubyspeed_should_compile] = {params: params}
     end
   end
 
   module T
+    def self.array(of)
+      "VALUE"
+    end
+
+    def self.int()
+      "int"
+    end
+  end
+
+  module Let
     def self.int(x)
       x
     end
@@ -38,13 +48,14 @@ module Rubyspeed
       if !Thread.current[:rubyspeed_should_compile]
         return
       end
-      Thread.current[:rubyspeed_should_compile] = false
+      config = Thread.current[:rubyspeed_should_compile]
+      Thread.current[:rubyspeed_should_compile] = nil
 
       target = singleton ? target.singleton_class : target
       original_impl = target.instance_method(name)
       source = retrieve_source(original_impl)
       ast = parse_ast(source)
-      c = C.generate_c(ast)
+      c = C.generate_c(ast, arg_types: config[:params])
 
       md5 = Digest::MD5.new
       md5 << target_name

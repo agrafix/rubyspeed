@@ -2,7 +2,7 @@
 
 _Work in progress._
 
-Welcome to Rubyspeed. Right now, Rubyspeed is a very early proof of concept (horribly hacked together) that allows annotating method declarations to automatically be compiled to C. Here's an example:
+Welcome to Rubyspeed. Right now, Rubyspeed is a very early proof of concept (horribly hacked together) that allows annotating method declarations to automatically be specialized and compiled to C. Here's an example:
 
 ``` ruby
 require 'rubyspeed'

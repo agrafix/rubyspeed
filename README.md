@@ -10,7 +10,7 @@ require 'rubyspeed'
 class TestClass
   extend(Rubyspeed::Compiles)
     
-  compile!(params: [Rubyspeed::T.array(Rubyspeed::T.int), Rubyspeed::T.array(Rubyspeed::T.int)])
+  compile!(params: [Rubyspeed::T.array(Rubyspeed::T.int), Rubyspeed::T.array(Rubyspeed::T.int)], return_type: Rubyspeed::T.int)
   def self.dot(a, b)
     c = Rubyspeed::Let.int(0)
     a.each_with_index do |a_val, idx|
@@ -47,7 +47,7 @@ This project was inspired by [Stephen Diehl's LLVM specializer for Python](http:
 
 ## Current Status
 
-The project is in very early stages -- today it can only compile extremely primitive functions (basically only one line numeric computations).
+The project is in very early stages -- today it can only compile extremely primitive functions (basically only simple numeric computations).
 
 ## Hacking
 

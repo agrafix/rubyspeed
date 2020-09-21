@@ -21,8 +21,8 @@ module Rubyspeed
       Rubyspeed::Internal.handle_new_method(self, name, singleton: true)
     end
 
-    def compile!(params:)
-      Thread.current[:rubyspeed_should_compile] = {params: params}
+    def compile!(params:, return_type:)
+      Thread.current[:rubyspeed_should_compile] = {params: params, return_type: return_type}
     end
   end
 
@@ -59,7 +59,7 @@ module Rubyspeed
       source = retrieve_source(original_impl)
       ast = parse_ast(source)
       # TODO: return type should be configurable
-      c, module_name = C.generate_c(ast, arg_types: config[:params], return_type: "int")
+      c, module_name = C.generate_c(ast, arg_types: config[:params], return_type: config[:return_type])
 
       compiled = compile_c(module_name, c)
 

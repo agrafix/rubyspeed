@@ -49,7 +49,7 @@ class RubyspeedTest < Minitest::Test
   class TestClass
     extend(Rubyspeed::Compiles)
 
-    compile!(params: [Rubyspeed::T.int])
+    compile!(params: [Rubyspeed::T.int], return_type: Rubyspeed::T.int)
     def add_two_method(x)
       x + 2
     end
@@ -67,7 +67,7 @@ class RubyspeedTest < Minitest::Test
   module TestModule
     extend(Rubyspeed::Compiles)
 
-    compile!(params: [Rubyspeed::T.int])
+    compile!(params: [Rubyspeed::T.int], return_type: Rubyspeed::T.int)
     def self.add_two_method(x)
       x + 2
     end

@@ -6,7 +6,7 @@ require 'benchmark'
 module BenchTestModule
   extend(Rubyspeed::Compiles)
 
-  compile!(params: [Rubyspeed::T.array(Rubyspeed::T.int), Rubyspeed::T.array(Rubyspeed::T.int)])
+  compile!(params: [Rubyspeed::T.array(Rubyspeed::T.int), Rubyspeed::T.array(Rubyspeed::T.int)], return_type: Rubyspeed::T.int)
   def self.dot(a, b)
     c = Rubyspeed::Let.int(0)
     a.each_with_index do |a_val, idx|

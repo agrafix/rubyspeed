@@ -1,8 +1,7 @@
 #!/usr/local/bin/ruby -w
 
 ##
-# Taken from https://github.com/seattlerb/rubyinline
-# Slightly modified to work for this project
+# Derived from https://github.com/seattlerb/rubyinline with significant modifications
 #
 # (The MIT License)
 
@@ -28,53 +27,6 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ##
 
-##
-# Ruby Inline is a framework for writing ruby extensions in foreign
-# languages.
-#
-# == SYNOPSIS
-#
-#   require 'inline'
-#   class MyClass
-#     inline do |builder|
-#       builder.include "<math.h>"
-#       builder.c %q{
-#         long factorial(int max) {
-#           int i=max, result=1;
-#           while (i >= 2) { result *= i--; }
-#           return result;
-#         }
-#       }
-#     end
-#   end
-#
-# == DESCRIPTION
-#
-# Inline allows you to write foreign code within your ruby code. It
-# automatically determines if the code in question has changed and
-# builds it only when necessary. The extensions are then automatically
-# loaded into the class/module that defines it.
-#
-# You can even write extra builders that will allow you to write
-# inlined code in any language. Use Inline::C as a template and look
-# at Module#inline for the required API.
-#
-# == PACKAGING
-#
-# To package your binaries into a gem, use hoe's INLINE and
-# FORCE_PLATFORM env vars.
-#
-# Example:
-#
-#   rake package INLINE=1
-#
-# or:
-#
-#   rake package INLINE=1 FORCE_PLATFORM=mswin32
-#
-# See hoe for more details.
-#
-
 require "rbconfig"
 require "digest/md5"
 require 'fileutils'
@@ -83,101 +35,6 @@ require 'rubygems'
 $TESTING = false unless defined? $TESTING
 
 class CompilationError < RuntimeError; end
-
-# See https://github.com/seattlerb/zentest/blob/54ab05acab020ea728d5911221367ff51e0ca849/lib/zentest_mapping.rb
-# Also used under MIT license Copyright (c) Ryan Davis, Eric Hodel, seattle.rb
-module ZenTestMapping
-
-  @@orig_method_map = {
-    '!'   => 'bang',
-    '%'   => 'percent',
-    '&'   => 'and',
-    '*'   => 'times',
-    '**'  => 'times2',
-    '+'   => 'plus',
-    '-'   => 'minus',
-    '/'   => 'div',
-    '<'   => 'lt',
-    '<='  => 'lte',
-    '<=>' => 'spaceship',
-    "<\<" => 'lt2',
-    '=='  => 'equals2',
-    '===' => 'equals3',
-    '=~'  => 'equalstilde',
-    '>'   => 'gt',
-    '>='  => 'ge',
-    '>>'  => 'gt2',
-    '+@'  => 'unary_plus',
-    '-@'  => 'unary_minus',
-    '[]'  => 'index',
-    '[]=' => 'index_equals',
-    '^'   => 'carat',
-    '|'   => 'or',
-    '~'   => 'tilde',
-  }
-
-  @@method_map = @@orig_method_map.merge(@@orig_method_map.invert)
-
-  @@mapped_re = @@orig_method_map.values.sort_by { |k| k.length }.map {|s|
-    Regexp.escape(s)
-  }.reverse.join("|")
-
-  def munge name
-    name = name.to_s.dup
-
-    is_cls_method = name.sub!(/^self\./, '')
-
-    name = @@method_map[name] if @@method_map.has_key? name
-    name = name.sub(/=$/, '_equals')
-    name = name.sub(/\?$/, '_eh')
-    name = name.sub(/\!$/, '_bang')
-
-    name = yield name if block_given?
-
-    name = "class_" + name if is_cls_method
-
-    name
-  end
-
-  # Generates a test method name from a normal method,
-  # taking into account names composed of metacharacters
-  # (used for arithmetic, etc
-  def normal_to_test name
-    "test_#{munge name}"
-  end
-
-  def unmunge name
-    name = name.to_s.dup
-
-    is_cls_method = name.sub!(/^class_/, '')
-
-    name = name.sub(/_equals(_.*)?$/, '=') unless name =~ /index/
-    name = name.sub(/_bang(_.*)?$/, '!')
-    name = name.sub(/_eh(_.*)?$/, '?')
-    name = name.sub(/^(#{@@mapped_re})(_.*)?$/) {$1}
-    name = yield name if block_given?
-    name = @@method_map[name] if @@method_map.has_key? name
-    name = 'self.' + name if is_cls_method
-
-    name
-  end
-
-  # Converts a method name beginning with test to its
-  # corresponding normal method name, taking into account
-  # symbolic names which may have been anglicised by
-  # #normal_to_test().
-  def test_to_normal(name, klassname=nil)
-    unmunge(name.to_s.sub(/^test_/, '')) do |n|
-      if defined? @inherited_methods then
-        known_methods = (@inherited_methods[klassname] || {}).keys.sort.reverse
-        known_methods_re = known_methods.map {|s| Regexp.escape(s) }.join("|")
-        n = n.sub(/^(#{known_methods_re})(_.*)?$/) { $1 } unless
-          known_methods_re.empty?
-        n
-      end
-    end
-  end
-end
 
 ##
 # The Inline module is the top-level module used. It is responsible
@@ -258,47 +115,7 @@ module Inline
     @@directory
   end
 
-  ##
-  # Inline::C is the default builder used and the only one provided by
-  # Inline. It can be used as a template to write builders for other
-  # languages. It understands type-conversions for the basic types and
-  # can be extended as needed using #add_type_converter, #alias_type_converter
-  # and #remove_type_converter.
-
   class C
-
-    include ZenTestMapping
-
-    MAGIC_ARITY_THRESHOLD = 15
-    MAGIC_ARITY = -1
-
-    ##
-    # Default C to ruby and ruby to C type map
-
-    TYPE_MAP = {
-      'char'               => [ 'NUM2CHR',        'CHR2FIX'      ],
-
-      'char *'             => [ 'StringValuePtr', 'rb_str_new2'  ],
-
-      'double'             => [ 'NUM2DBL',        'rb_float_new' ],
-
-      'int'                => [ "FI\X2INT",       'INT2FIX'      ],
-      'unsigned int'       => [ 'NUM2UINT',       'UINT2NUM'     ],
-      'unsigned'           => [ 'NUM2UINT',       'UINT2NUM'     ],
-
-      'long'               => [ 'NUM2LONG',       'LONG2NUM'     ],
-      'unsigned long'      => [ 'NUM2ULONG',      'ULONG2NUM'    ],
-
-      'long long'          => [ 'NUM2LL',         'LL2NUM'       ],
-      'unsigned long long' => [ 'NUM2ULL',        'ULL2NUM'      ],
-
-      'off_t'              => [ 'NUM2OFFT',       'OFFT2NUM'     ],
-
-      'VALUE'              => [ '',               ''             ],
-      # Can't do these converters because they conflict with the above:
-      # ID2SYM(x), SYM2ID(x), F\IX2UINT(x)
-    }
-
     def module_name
       @target_class
     end
@@ -314,38 +131,11 @@ module Inline
     attr_writer :target_class
     attr_accessor :flags, :libs
 
-    ##
-    # Sets the name of the C struct for generating accessors.  Used with
-    # #accessor, #reader, #writer.
-
-    attr_accessor :struct_name
-
     def initialize(target_class, code)
       @target_class = target_class
       @flags = []
       @libs = []
-      @include_ruby_first = true
-      @inherited_methods = {}
-      @struct_name = nil
       @code = code
-
-      @type_map = TYPE_MAP.dup
-    end
-
-    ##
-    # Converts ruby type +type+ to a C type
-
-    def ruby2c(type)
-      raise ArgumentError, "Unknown type #{type.inspect}" unless @type_map.has_key? type
-      @type_map[type].first
-    end
-
-    ##
-    # Converts C type +type+ to a ruby type
-
-    def c2ruby(type)
-      raise ArgumentError, "Unknown type #{type.inspect}" unless @type_map.has_key? type
-      @type_map[type].last
     end
 
     ##
@@ -514,88 +304,12 @@ module Inline
     end
 
     ##
-    # Registers a static id_name for the symbol :name.
-
-    def add_id name
-      self.add_static "id_#{name}", "rb_intern(\"#{name}\")"
-    end
-
-    ##
     # Adds linker flags to the link command line.  No preprocessing is
     # done, so you must have all your dashes and everything.
 
     def add_link_flags(*flags)
       @libs.push(*flags)
     end
-
-    ##
-    # Create a static variable and initialize it to a value.
-
-    def add_static name, init, type = "VALUE"
-      prefix      "static #{type} #{name};"
-      add_to_init "#{name} = #{init};"
-    end
-
-    ##
-    # Registers C type-casts +r2c+ and +c2r+ for +type+.
-
-    def add_type_converter(type, r2c, c2r)
-      warn "WAR\NING: overridding #{type} on #{caller[0]}" if @type_map.has_key? type
-      @type_map[type] = [r2c, c2r]
-    end
-
-    ##
-    # Registers C type +alias_type+ as an alias of +existing_type+
-
-    def alias_type_converter(existing_type, alias_type)
-      warn "WAR\NING: overridding #{type} on #{caller[0]}" if
-        @type_map.has_key? alias_type
-
-      @type_map[alias_type] = @type_map[existing_type]
-    end
-
-    ##
-    # Unregisters C type-casts for +type+.
-
-    def remove_type_converter(type)
-      @type_map.delete type
-    end
-
-    ##
-    # Maps RubyConstants to cRubyConstants.
-
-    def map_ruby_const(*names)
-      names.each do |name|
-        self.prefix "static VALUE c#{name};"
-        self.add_to_init "    c#{name} = rb_const_get(c, rb_intern(#{name.to_s.inspect}));"
-      end
-    end
-
-    ##
-    # Maps a C constant to ruby. +names_and_types+ is a hash that maps the
-    # name of the constant to its C type.
-    #
-    #   builder.map_c_const :C_NAME => :int
-    #
-    # If you wish to give the constant a different ruby name:
-    #
-    #   builder.map_c_const :C_NAME => [:int, :RUBY_NAME]
-
-    def map_c_const(names_and_types)
-      names_and_types.each do |name, typ|
-        typ, ruby_name = Array === typ ? typ : [typ, name]
-        self.add_to_init "    rb_define_const(c, #{ruby_name.to_s.inspect}, #{c2ruby(typ.to_s)}(#{name}));"
-      end
-    end
-
-    ##
-    # Specifies that the the ruby.h header should be included *after* custom
-    # header(s) instead of before them.
-
-    def include_ruby_last
-      @include_ruby_first = false
-    end
-
 
   end # class Inline::C
 end # module Inline

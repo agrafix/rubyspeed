@@ -2,7 +2,7 @@
 
 _Work in progress._
 
-Welcome to Rubyspeed. Right now, Rubyspeed is a very early proof of concept (horribly hacked together) that allows annotating method declarations to automatically be specialized and compiled to C. Here's an example:
+Welcome to Rubyspeed. Right now, Rubyspeed is a basic proof of concept (horribly hacked together) that allows annotating method declarations to automatically be specialized and compiled to C. Here's an example:
 
 ``` ruby
 require 'rubyspeed'
@@ -47,7 +47,7 @@ This project was inspired by [Stephen Diehl's LLVM specializer for Python](http:
 
 ## Current Status
 
-The project is in very early stages -- today it can only compile extremely primitive functions (basically only simple numeric computations).
+The project can only compile extremely primitive functions (basically only simple numeric computations). I am open to any pull requests for improvements, but would discourage using this in production anywhere :-)
 
 ## Hacking
 

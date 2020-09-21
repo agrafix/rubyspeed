@@ -10,8 +10,8 @@
         #endif
         
         void Init_Rubyspeedi_8a9ee7a43846aada09e7132c19791461() {
-            const VALUE c = rb_define_class("Rubyspeedi_8a9ee7a43846aada09e7132c19791461", rb_cObject);
-            rb_define_method(c, "example_loop", (VALUE(*)(ANYARGS))example_loop, 1);
+            const VALUE c = rb_path2class("Rubyspeed::CompileTarget");
+            rb_define_singleton_method(c, "Rubyspeedi_8a9ee7a43846aada09e7132c19791461_example_loop", (VALUE(*)(ANYARGS))example_loop, 1);
         }
         #ifdef __cplusplus
         }

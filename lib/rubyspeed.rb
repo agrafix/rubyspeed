@@ -61,11 +61,12 @@ module Rubyspeed
       # TODO: return type should be configurable
       c, module_name = C.generate_c(ast, arg_types: config[:params], return_type: "int")
 
-      compiled = compile_c(module_name, c).new
+      compiled = compile_c(module_name, c)
 
+      compiled_name = "#{module_name}_#{name}"
       # TODO: keep visibility etc.
       target.send(:define_method, name) do |*args, &blk|
-        compiled.send(name, *args, &blk)
+        compiled.send(compiled_name, *args, &blk)
       end
     end
 
@@ -83,7 +84,7 @@ module Rubyspeed
         builder.build
         builder.load
       end
-      Object.const_get(key)
+      CompileTarget
     end
   end
 end

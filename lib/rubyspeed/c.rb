@@ -200,8 +200,8 @@ module Rubyspeed
         #endif
         #{is_windows ? "__declspec(dllexport)" : ""}
         void Init_#{module_name}() {
-            const VALUE c = rb_define_class("#{module_name}", rb_cObject);
-            rb_define_method(c, "#{method_name}", (VALUE(*)(ANYARGS))#{method_name}, #{args.length});
+            const VALUE c = rb_path2class("Rubyspeed::CompileTarget");
+            rb_define_singleton_method(c, "#{module_name}_#{method_name}", (VALUE(*)(ANYARGS))#{method_name}, #{args.length});
         }
         #ifdef __cplusplus
         }

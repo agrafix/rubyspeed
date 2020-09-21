@@ -11,8 +11,8 @@ VALUE b = _b;
         #endif
         
         void Init_Rubyspeedi_ba928448ab77333865e42400b341073d() {
-            const VALUE c = rb_define_class("Rubyspeedi_ba928448ab77333865e42400b341073d", rb_cObject);
-            rb_define_method(c, "example_dot", (VALUE(*)(ANYARGS))example_dot, 2);
+            const VALUE c = rb_path2class("Rubyspeed::CompileTarget");
+            rb_define_singleton_method(c, "Rubyspeedi_ba928448ab77333865e42400b341073d_example_dot", (VALUE(*)(ANYARGS))example_dot, 2);
         }
         #ifdef __cplusplus
         }

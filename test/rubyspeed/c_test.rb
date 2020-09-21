@@ -52,8 +52,8 @@ class RubyspeedTestC < Minitest::Test
         assert_equal(expected, c)
       end
 
-      compiled = Rubyspeed::Internal.compile_c(module_name, c).new
-      assert_equal(send(test[:name], *test[:args]), compiled.send(test[:name], *test[:args]))
+      compiled = Rubyspeed::Internal.compile_c(module_name, c)
+      assert_equal(send(test[:name], *test[:args]), compiled.send("#{module_name}_#{test[:name]}", *test[:args]))
 
       if !File.file?(file)
         File.write(file, c, mode: "w")

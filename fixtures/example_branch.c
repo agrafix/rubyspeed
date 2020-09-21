@@ -11,8 +11,8 @@ int x = FIX2INT(_x);
         #endif
         
         void Init_Rubyspeedi_6b22404fad5c81ace6a9ef111ef8c7ce() {
-            const VALUE c = rb_define_class("Rubyspeedi_6b22404fad5c81ace6a9ef111ef8c7ce", rb_cObject);
-            rb_define_method(c, "example_branch", (VALUE(*)(ANYARGS))example_branch, 2);
+            const VALUE c = rb_path2class("Rubyspeed::CompileTarget");
+            rb_define_singleton_method(c, "Rubyspeedi_6b22404fad5c81ace6a9ef111ef8c7ce_example_branch", (VALUE(*)(ANYARGS))example_branch, 2);
         }
         #ifdef __cplusplus
         }

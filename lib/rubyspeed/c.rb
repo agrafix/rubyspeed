@@ -151,10 +151,10 @@ module Rubyspeed
           lenvar = ctx.fresh_name('len')
           # TODO: this hard codes that the values of the parameter are ints
           out = ""
-          out += "long #{lenvar} = rb_array_len(#{tgt});"
+          out += "const long #{lenvar} = rb_array_len(#{tgt});"
           out += "for (int #{ivar} = 0; #{ivar} < #{lenvar}; #{ivar}++) {"
           if has_index
-            out += "int #{index_name} = #{ivar};";
+            out += "const int #{index_name} = #{ivar};";
           end
           out += "int #{param_name} = FIX2INT(rb_ary_entry(#{tgt}, #{ivar}));"
           out += body_expr
@@ -190,7 +190,7 @@ module Rubyspeed
         <<-EOF
         #include "ruby.h"
 
-        static VALUE #{method_name}(VALUE self, #{args.map { |a| "VALUE _#{a[1]}"}.join(", ")}) {
+        static VALUE #{method_name}(const VALUE self, #{args.map { |a| "const VALUE _#{a[1]}"}.join(", ")}) {
           #{arg_conv}
           #{implementation}
         }
@@ -200,7 +200,7 @@ module Rubyspeed
         #endif
         #{is_windows ? "__declspec(dllexport)" : ""}
         void Init_#{module_name}() {
-            VALUE c = rb_define_class("#{module_name}", rb_cObject);
+            const VALUE c = rb_define_class("#{module_name}", rb_cObject);
             rb_define_method(c, "#{method_name}", (VALUE(*)(ANYARGS))#{method_name}, #{args.length});
         }
         #ifdef __cplusplus

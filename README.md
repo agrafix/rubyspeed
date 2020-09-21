@@ -43,7 +43,7 @@ In short:
 
 ## Inspiration
 
-This project was inspired by [Stephen Diehl's LLVM specializer for Python](http://dev.stephendiehl.com/numpile/) and [rubyinline](https://github.com/seattlerb/rubyinline). In fact, the code that calls the C compiler is based on rubyinline.
+This project was inspired by [Stephen Diehl's LLVM specializer for Python](http://dev.stephendiehl.com/numpile/) and [rubyinline](https://github.com/seattlerb/rubyinline).
 
 ## Current Status
 

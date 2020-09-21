@@ -42,9 +42,12 @@ module Rubyspeed
     end
   end
 
+  class CompileTarget
+    # TODO: all compiled methods to end up here
+  end
+
   module Internal
     def self.handle_new_method(target, name, singleton:)
-      target_name = target.name
       if !Thread.current[:rubyspeed_should_compile]
         return
       end
@@ -55,13 +58,10 @@ module Rubyspeed
       original_impl = target.instance_method(name)
       source = retrieve_source(original_impl)
       ast = parse_ast(source)
-      c = C.generate_c(ast, arg_types: config[:params])
+      # TODO: return type should be configurable
+      c, module_name = C.generate_c(ast, arg_types: config[:params], return_type: "int")
 
-      md5 = Digest::MD5.new
-      md5 << target_name
-      md5 << source
-
-      compiled = compile_c("Rubyspeed_#{md5.hexdigest}", c).new
+      compiled = compile_c(module_name, c).new
 
       # TODO: keep visibility etc.
       target.send(:define_method, name) do |*args, &blk|
@@ -78,8 +78,10 @@ module Rubyspeed
     end
 
     def self.compile_c(key, code)
-      Inliner.inline(key) do |builder|
-        builder.c(code)
+      builder = Inline::C.new(key, code)
+      if !builder.load_cache
+        builder.build
+        builder.load
       end
       Object.const_get(key)
     end

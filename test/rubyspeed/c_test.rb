@@ -9,7 +9,7 @@ class RubyspeedTestC < Minitest::Test
   def example_add(x)
     x + 1
   end
-  TESTS.push(name: :example_add, args: [1], arg_types: [Rubyspeed::T.int])
+  TESTS.push(name: :example_add, args: [1], arg_types: [Rubyspeed::T.int], return_type: Rubyspeed::T.int)
 
   def example_branch(flag, x)
     if flag > 10
@@ -20,7 +20,7 @@ class RubyspeedTestC < Minitest::Test
       0
     end
   end
-  TESTS.push({name: :example_branch, args: [10, 10], arg_types: [Rubyspeed::T.int, Rubyspeed::T.int]})
+  TESTS.push({name: :example_branch, args: [10, 10], arg_types: [Rubyspeed::T.int, Rubyspeed::T.int], return_type: Rubyspeed::T.int})
 
   def example_loop(arr)
     sum = Rubyspeed::Let.int(0)
@@ -29,7 +29,7 @@ class RubyspeedTestC < Minitest::Test
     end
     sum
   end
-  TESTS.push({name: :example_loop, args: [[1, 2]], arg_types: [Rubyspeed::T::array(Rubyspeed::T.int)]})
+  TESTS.push({name: :example_loop, args: [[1, 2]], arg_types: [Rubyspeed::T::array(Rubyspeed::T.int)], return_type: Rubyspeed::T.int})
 
   def example_dot(a, b)
     c = Rubyspeed::Let.int(0)
@@ -38,13 +38,13 @@ class RubyspeedTestC < Minitest::Test
     end
     c
   end
-  TESTS.push({name: :example_dot, args: [[1, 2], [3, 4]], arg_types: [Rubyspeed::T::array(Rubyspeed::T.int), Rubyspeed::T::array(Rubyspeed::T.int)]})
+  TESTS.push({name: :example_dot, args: [[1, 2], [3, 4]], arg_types: [Rubyspeed::T::array(Rubyspeed::T.int), Rubyspeed::T::array(Rubyspeed::T.int)], return_type: Rubyspeed::T.int})
 
   TESTS.each do |test|
     define_method "test_#{test[:name]}" do
       src = Rubyspeed::Internal.retrieve_source(method(test[:name]))
       ast = Rubyspeed::Internal.parse_ast(src)
-      c = Rubyspeed::Internal::C.generate_c(ast, arg_types: test[:arg_types])
+      c, module_name = Rubyspeed::Internal::C.generate_c(ast, arg_types: test[:arg_types], return_type: test[:return_type])
 
       file = File.join("fixtures", "#{test[:name]}.c")
       if File.file?(file)
@@ -52,7 +52,7 @@ class RubyspeedTestC < Minitest::Test
         assert_equal(expected, c)
       end
 
-      compiled = Rubyspeed::Internal.compile_c("Compiled#{test[:name]}", c).new
+      compiled = Rubyspeed::Internal.compile_c(module_name, c).new
       assert_equal(send(test[:name], *test[:args]), compiled.send(test[:name], *test[:args]))
 
       if !File.file?(file)

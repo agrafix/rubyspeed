@@ -186,7 +186,7 @@ end
 # the current namespace.
 
 module Inline
-  VERSION = "3.12.5"
+  VERSION = "4.0.0"
 
   WINDOWS  = /mswin|mingw/ =~ RUBY_PLATFORM
   RUBINIUS = defined? RUBY_ENGINE
@@ -198,7 +198,7 @@ module Inline
                "#{Gem.ruby} -S rake"
              end
 
-  warn "RubyInline v #{VERSION}" if $DEBUG
+  warn "RubySpeed v #{VERSION}" if $DEBUG
 
   # rootdir can be forced using INLINEDIR variable
   # if not defined, it should store in user HOME folder
@@ -299,195 +299,8 @@ module Inline
       # ID2SYM(x), SYM2ID(x), F\IX2UINT(x)
     }
 
-    def strip_comments(src)
-      # strip c-comments
-      src = src.gsub(%r%\s*/\*.*?\*/%m, '')
-      # strip cpp-comments
-      src = src.gsub(%r%^\s*//.*?\n%, '')
-      src = src.gsub(%r%[ \t]*//[^\n]*%, '')
-      src
-    end
-
-    def parse_signature(src, raw=false)
-
-      sig = self.strip_comments(src)
-      # strip preprocessor directives
-      sig.gsub!(/^\s*\#.*(\\\n.*)*/, '')
-      # strip {}s
-      sig.gsub!(/\{[^\}]*\}/, '{ }')
-      # clean and collapse whitespace
-      sig.gsub!(/\s+/, ' ')
-
-      unless defined? @types then
-        @types = 'void|' + @type_map.keys.map{|x| Regexp.escape(x)}.join('|')
-      end
-
-      if /(#{@types})\s*(\w+)\s*\(([^)]*)\)/ =~ sig then
-        return_type, function_name, arg_string = $1, $2, $3
-        args = []
-        arg_string.split(',').each do |arg|
-
-          # helps normalize into 'char * varname' form
-          arg = arg.gsub(/\s*\*\s*/, ' * ').strip
-
-          if /(((#{@types})\s*\*?)+)\s+(\w+)\s*$/ =~ arg then
-            args.push([$4, $1])
-          elsif arg != "void" then
-            warn "WAR\NING: '#{arg}' not understood"
-          end
-        end
-
-        arity = args.size
-        arity = MAGIC_ARITY if raw
-
-        return {
-          'return' => return_type,
-          'name'   => function_name,
-          'args'   => args,
-          'arity'  => arity
-        }
-      end
-
-      raise SyntaxError, "Can't parse signature: #{sig}"
-    end # def parse_signature
-
-    def generate(src, options={})
-      options = {:expand_types=>options} unless Hash === options
-
-      expand_types = options[:expand_types]
-      singleton = options[:singleton]
-      result = self.strip_comments(src)
-
-      signature = parse_signature(src, !expand_types)
-      function_name = signature['name']
-      method_name = options[:method_name]
-      method_name ||= test_to_normal function_name
-      return_type = signature['return']
-      arity = options[:arity] || signature['arity']
-
-      raise ArgumentError, "too many arguments" if arity > MAGIC_ARITY_THRESHOLD
-
-      if expand_types then
-        prefix = "static VALUE #{function_name}("
-        if arity <= MAGIC_ARITY then
-          prefix += "int argc, VALUE *argv, VALUE self"
-        else
-          prefix += "VALUE self"
-          prefix += signature['args'].map { |arg, type| ", VALUE _#{arg}"}.join
-        end
-        prefix += ") {\n"
-        prefix += signature['args'].map { |arg, type|
-          "  #{type} #{arg} = #{ruby2c(type)}(_#{arg});\n"
-        }.join
-
-        # replace the function signature (hopefully) with new sig (prefix)
-        result.sub!(/[^;\/\"\>]+#{function_name}\s*\([^\{]+\{/, "\n" + prefix)
-        result.sub!(/\A\n/, '') # strip off the \n in front in case we added it
-        unless return_type == "void" then
-          raise SyntaxError, "Couldn't find return statement for #{function_name}" unless
-            result =~ /return/
-          result.gsub!(/return\s+([^\;\}]+)/) do
-            "return #{c2ruby(return_type)}(#{$1})"
-          end
-        else
-          result.sub!(/\s*\}\s*\Z/, "\nreturn Qnil;\n}")
-        end
-      else
-        prefix = "static #{return_type} #{function_name}("
-        result.sub!(/[^;\/\"\>]+#{function_name}\s*\(/, prefix)
-        result.sub!(/\A\n/, '') # strip off the \n in front in case we added it
-      end
-
-      delta = if result =~ /\A(static.*?\{)/m then
-                $1.split(/\n/).size
-              else
-                msg = "WAR\NING: Can't find signature in #{result.inspect}\n"
-                warn msg unless $TESTING
-                0
-              end
-
-      file, line = $1, $2 if caller[1] =~ /(.*?):(\d+)/
-
-      result = "# line #{line.to_i + delta} \"#{file}\"\n" + result unless
-        $DEBUG and not $TESTING
-
-      @src << result
-      @sig[function_name] = [arity,singleton,method_name]
-
-      return result if $TESTING
-    end # def generate
-
-    ##
-    # Builds a complete C extension suitable for writing to a file and
-    # compiling.
-
-    def generate_ext
-      ext = []
-
-      if @include_ruby_first
-        @inc.unshift "#include \"ruby.h\""
-      else
-        @inc.push "#include \"ruby.h\""
-      end
-
-      ext << @inc
-      ext << nil
-      unless @pre.empty? then
-        ext << @pre.join("\n\n")
-        ext << nil
-      end
-      ext << @src.join("\n\n")
-      ext << nil
-      ext << nil
-      ext << "#ifdef __cplusplus"
-      ext << "extern \"C\" {"
-      ext << "#endif"
-      ext << "  __declspec(dllexport)" if WINDOWS
-      ext << "  void Init_#{module_name}() {"
-      ext << "    VALUE c = rb_cObject;"
-      ext << "    c = rb_define_class(\"#{@target_class}\", c);"
-
-      ext << nil
-
-      @sig.keys.sort.each do |name|
-        method = ''
-        arity, singleton, method_name = @sig[name]
-        if singleton then
-          if method_name == 'allocate' then
-            raise "#{@target_class}::allocate must have an arity of zero" if arity > 0
-            ext << "    rb_define_alloc_func(c, (VALUE(*)(VALUE))#{name});"
-            next
-          end
-          method << "    rb_define_singleton_method(c, \"#{method_name}\", "
-        else
-          method << "    rb_define_method(c, \"#{method_name}\", "
-        end
-        method << "(VALUE(*)(ANYARGS))#{name}, #{arity});"
-        ext << method
-      end
-
-      ext << @init_extra.join("\n") unless @init_extra.empty?
-
-      ext << nil
-      ext << "  }"
-      ext << "#ifdef __cplusplus"
-      ext << "}"
-      ext << "#endif"
-      ext << nil
-
-      ext.join "\n"
-    end
-
     def module_name
-      unless defined? @module_name then
-        module_name = @target_class.gsub('::','__')
-        md5 = Digest::MD5.new
-        @pre.each { |m| md5 << m.to_s }
-        @src.each { |s| md5 << s }
-        @sig.keys.sort_by { |x| x.to_s }.each { |m| md5 << m.to_s }
-        @module_name = "Inline_#{module_name}_#{md5}"
-      end
-      @module_name
+      @target_class
     end
 
     def so_name
@@ -497,9 +310,9 @@ module Inline
       @so_name
     end
 
-    attr_reader :rb_file, :target_class
+    attr_reader :target_class
     attr_writer :target_class
-    attr_accessor :src, :pre, :sig, :flags, :libs, :init_extra
+    attr_accessor :flags, :libs
 
     ##
     # Sets the name of the C struct for generating accessors.  Used with
@@ -507,90 +320,16 @@ module Inline
 
     attr_accessor :struct_name
 
-    def initialize(target_class)
-      stack = caller
-      meth = stack.shift until meth =~ /in .(inline|test_|setup)/ or stack.empty?
-      raise "Couldn't discover caller" if stack.empty?
-      real_caller = stack.first
-      real_caller = stack[3] if real_caller =~ /\(eval\)/
-      real_caller =~ /(.*):(\d+)/
-      real_caller = $1
-      @rb_file = File.expand_path real_caller
-
+    def initialize(target_class, code)
       @target_class = target_class
-      @pre = []
-      @src = []
-      @inc = []
-      @sig = {}
       @flags = []
       @libs = []
-      @init_extra = []
       @include_ruby_first = true
       @inherited_methods = {}
       @struct_name = nil
+      @code = code
 
       @type_map = TYPE_MAP.dup
-    end
-
-    ##
-    # Adds a #reader and #writer for a C struct member wrapped via
-    # Data_Wrap_Struct.  +method+ is the ruby name to give the accessor,
-    # +type+ is the C type.  Unless the C member name is overridden with
-    # +member+, the method name is used as the struct member.
-    #
-    #   builder.struct_name = 'MyStruct'
-    #   builder.accessor :title,        'char *'
-    #   builder.accessor :stream_index, 'int',   :index
-    #
-    # The latter accesses MyStruct->index via the stream_index method.
-
-    def accessor(method, type, member = method)
-      reader method, type, member
-      writer method, type, member
-    end
-
-    ##
-    # Adds a reader for a C struct member wrapped via Data_Wrap_Struct.
-    # +method+ is the ruby name to give the reader, +type+ is the C type.
-    # Unless the C member name is overridden with +member+, the method
-    # name is used as the struct member.  See #accessor for an example.
-
-    def reader(method, type, member = method)
-      raise "struct name not set for reader #{method} #{type}" unless
-        @struct_name
-
-      c <<-C
-VALUE #{method}() {
-  #{@struct_name} *pointer;
-
-  Data_Get_Struct(self, #{@struct_name}, pointer);
-
-  return #{c2ruby type}(pointer->#{member});
-}
-      C
-    end
-
-    ##
-    # Adds a writer for a C struct member wrapped via Data_Get_Struct.
-    # +method+ is the ruby name to give the writer, +type+ is the C type.
-    # Unless the C member name is overridden with +member+, the method
-    # name is used as the struct member.  See #accessor for an example.
-
-    def writer(method, type, member = method)
-      raise "struct name not set for writer #{method} #{type}" unless
-        @struct_name
-
-      c <<-C
-VALUE #{method}_equals(VALUE value) {
-  #{@struct_name} *pointer;
-
-  Data_Get_Struct(self, #{@struct_name}, pointer);
-
-  pointer->#{member} = #{ruby2c type}(value);
-
-  return value;
-}
-      C
     end
 
     ##
@@ -629,7 +368,7 @@ VALUE #{method}_equals(VALUE value) {
     # Loads the generated code back into ruby
 
     def load
-      require "#{so_name}" or raise LoadError, "require on #{so_name} failed"
+      require "#{so_name}"
     end
 
     ##
@@ -638,118 +377,114 @@ VALUE #{method}_equals(VALUE value) {
     def build
       so_name = self.so_name
       so_exists = File.file? so_name
-      unless so_exists and File.mtime(rb_file) < File.mtime(so_name) then
+      
+      unless  File.directory? Inline.directory then
+        warn "NOTE: creating #{Inline.directory} for RubyInline" if $DEBUG
+        FileUtils.mkdir_p Inline.directory, :mode => 0700
+      end
 
-        unless File.directory? Inline.directory then
-          warn "NOTE: creating #{Inline.directory} for RubyInline" if $DEBUG
-          FileUtils.mkdir_p Inline.directory, :mode => 0700
-        end
+      src_name = "#{Inline.directory}/#{module_name}.c"
+      old_src_name = "#{src_name}.old"
+      should_compare = File.write_with_backup(src_name) do |io|
+        io.puts(@code)
+      end
 
-        src_name = "#{Inline.directory}/#{module_name}.c"
-        old_src_name = "#{src_name}.old"
-        should_compare = File.write_with_backup(src_name) do |io|
-          io.puts generate_ext
-        end
+      # recompile only if the files are different
+      recompile = true
+      if so_exists and should_compare and FileUtils.compare_file(old_src_name, src_name)
+        recompile = false
 
-        # recompile only if the files are different
-        recompile = true
-        if so_exists and should_compare and
-            FileUtils.compare_file(old_src_name, src_name) then
-          recompile = false
+        # Updates the timestamps on all the generated/compiled files.
+        # Prevents us from entering this conditional unless the source
+        # file changes again.
+        t = Time.now
+        File.utime(t, t, src_name, old_src_name, so_name)
+      end
 
-          # Updates the timestamps on all the generated/compiled files.
-          # Prevents us from entering this conditional unless the source
-          # file changes again.
-          t = Time.now
-          File.utime(t, t, src_name, old_src_name, so_name)
-        end
+      if recompile
+        hdrdir = %w(srcdir includedir archdir rubyhdrdir).map { |name|
+          RbConfig::CONFIG[name]
+        }.find { |dir|
+          dir and File.exist? File.join(dir, "ruby.h")
+        } or abort "ERROR: Can't find header dir for ruby. Exiting..."
 
-        if recompile then
+        flags = @flags.join(' ')
+        libs  = @libs.join(' ')
 
-          hdrdir = %w(srcdir includedir archdir rubyhdrdir).map { |name|
-            RbConfig::CONFIG[name]
-          }.find { |dir|
-            dir and File.exist? File.join(dir, "ruby.h")
-          } or abort "ERROR: Can't find header dir for ruby. Exiting..."
-
-          flags = @flags.join(' ')
-          libs  = @libs.join(' ')
-
-          config_hdrdir = if RbConfig::CONFIG['rubyarchhdrdir'] then
-                            "-I #{RbConfig::CONFIG['rubyarchhdrdir']}"
-                          elsif RUBY_VERSION > '1.9' then
-                            "-I #{File.join hdrdir, RbConfig::CONFIG['arch']}"
-                          else
-                            nil
-                          end
-
-          windows = WINDOWS and RUBY_PLATFORM =~ /mswin/
-          non_windows = ! windows
-          cmd = [ RbConfig::CONFIG['LDSHARED'],
-                  flags,
-                  "-Ofast",
-                  (RbConfig::CONFIG['DLDFLAGS']         if non_windows),
-                  (RbConfig::CONFIG['CCDLFLAGS']        if non_windows),
-                  RbConfig::CONFIG['CFLAGS'],
-                  (RbConfig::CONFIG['LDFLAGS']          if non_windows),
-                  '-I', hdrdir,
-                  config_hdrdir,
-                  '-I', RbConfig::CONFIG['includedir'],
-                  ("-L#{RbConfig::CONFIG['libdir']}"    if non_windows),
-                  (['-o', so_name.inspect]              if non_windows),
-                  File.expand_path(src_name).inspect,
-                  libs,
-                  cfg_for_windows,
-                  (RbConfig::CONFIG['LDFLAGS']          if windows),
-                  (RbConfig::CONFIG['CCDLFLAGS']        if windows),
-                ].compact.join(' ')
-
-          # odd compilation error on clang + freebsd 10. Ruby built w/ rbenv.
-          cmd = cmd.gsub(/-Wl,-soname,\$@/, "-Wl,-soname,#{File.basename so_name}")
-
-          # strip off some makefile macros for mingw 1.9
-          cmd = cmd.gsub(/\$\(.*\)/, '') if RUBY_PLATFORM =~ /mingw/
-
-          cmd += " 2> #{DEV_NULL}" if $TESTING and not $DEBUG
-
-          warn "Building #{so_name} with '#{cmd}'" if $DEBUG
-
-          result = if WINDOWS
-                     Dir.chdir(Inline.directory) { `#{cmd}` }
-                   else
-                     `#{cmd}`
-                   end
-
-          warn "Output:\n#{result}" if $DEBUG
-
-          if $? != 0 then
-            bad_src_name = src_name + ".bad"
-            File.rename src_name, bad_src_name
-            raise CompilationError, "error executing #{cmd.inspect}: #{$?}\nRenamed #{src_name} to #{bad_src_name}"
+        config_hdrdir =
+          if RbConfig::CONFIG['rubyarchhdrdir'] then
+            "-I #{RbConfig::CONFIG['rubyarchhdrdir']}"
+          elsif RUBY_VERSION > '1.9' then
+            "-I #{File.join hdrdir, RbConfig::CONFIG['arch']}"
+          else
+            nil
           end
 
-          # NOTE: manifest embedding is only required when using VC8 ruby
-          # build or compiler.
-          # Errors from this point should be ignored if RbConfig::CONFIG['arch']
-          # (RUBY_PLATFORM) matches 'i386-mswin32_80'
-          if WINDOWS and RUBY_PLATFORM =~ /_80$/ then
-            Dir.chdir Inline.directory do
-              cmd = "mt /manifest lib.so.manifest /outputresource:so.dll;#2"
-              warn "Embedding manifest with '#{cmd}'" if $DEBUG
-              result = `#{cmd}`
-              warn "Output:\n#{result}" if $DEBUG
-              if $? != 0 then
-                raise CompilationError, "error executing #{cmd}: #{$?}"
-              end
+        windows = WINDOWS and RUBY_PLATFORM =~ /mswin/
+        non_windows = ! windows
+        cmd =
+          [ RbConfig::CONFIG['LDSHARED'],
+            flags,
+            "-Ofast",
+            (RbConfig::CONFIG['DLDFLAGS']         if non_windows),
+            (RbConfig::CONFIG['CCDLFLAGS']        if non_windows),
+            RbConfig::CONFIG['CFLAGS'],
+            (RbConfig::CONFIG['LDFLAGS']          if non_windows),
+            '-I', hdrdir,
+            config_hdrdir,
+            '-I', RbConfig::CONFIG['includedir'],
+            ("-L#{RbConfig::CONFIG['libdir']}"    if non_windows),
+            (['-o', so_name.inspect]              if non_windows),
+            File.expand_path(src_name).inspect,
+            libs,
+            cfg_for_windows,
+            (RbConfig::CONFIG['LDFLAGS']          if windows),
+            (RbConfig::CONFIG['CCDLFLAGS']        if windows),
+          ].compact.join(' ')
+
+        # odd compilation error on clang + freebsd 10. Ruby built w/ rbenv.
+        cmd = cmd.gsub(/-Wl,-soname,\$@/, "-Wl,-soname,#{File.basename so_name}")
+
+        # strip off some makefile macros for mingw 1.9
+        cmd = cmd.gsub(/\$\(.*\)/, '') if RUBY_PLATFORM =~ /mingw/
+
+        cmd += " 2> #{DEV_NULL}" if $TESTING and not $DEBUG
+
+        warn "Building #{so_name} with '#{cmd}'" if $DEBUG
+
+        result =
+          if WINDOWS
+            Dir.chdir(Inline.directory) { `#{cmd}` }
+          else
+            `#{cmd}`
+          end
+
+        warn "Output:\n#{result}" if $DEBUG
+
+        if $? != 0
+          bad_src_name = src_name + ".bad"
+          File.rename src_name, bad_src_name
+          raise CompilationError, "error executing #{cmd.inspect}: #{$?}\nRenamed #{src_name} to #{bad_src_name}"
+        end
+
+        # NOTE: manifest embedding is only required when using VC8 ruby
+        # build or compiler.
+        # Errors from this point should be ignored if RbConfig::CONFIG['arch']
+        # (RUBY_PLATFORM) matches 'i386-mswin32_80'
+        if WINDOWS and RUBY_PLATFORM =~ /_80$/
+          Dir.chdir Inline.directory do
+            cmd = "mt /manifest lib.so.manifest /outputresource:so.dll;#2"
+            warn "Embedding manifest with '#{cmd}'" if $DEBUG
+            result = `#{cmd}`
+            warn "Output:\n#{result}" if $DEBUG
+            if $? != 0 then
+              raise CompilationError, "error executing #{cmd}: #{$?}"
             end
           end
-
-          warn "Built successfully" if $DEBUG
         end
 
-      else
-        warn "#{so_name} is up to date" if $DEBUG
-      end # unless (file is out of date)
+        warn "Built successfully" if $DEBUG
+      end
     end # def build
 
     ##
@@ -799,13 +534,6 @@ VALUE #{method}_equals(VALUE value) {
     def add_static name, init, type = "VALUE"
       prefix      "static #{type} #{name};"
       add_to_init "#{name} = #{init};"
-    end
-
-    ##
-    # Adds custom content to the end of the init function.
-
-    def add_to_init(*src)
-      @init_extra.push(*src)
     end
 
     ##
@@ -861,14 +589,6 @@ VALUE #{method}_equals(VALUE value) {
     end
 
     ##
-    # Adds an include to the top of the file. Don't forget to use
-    # quotes or angle brackets.
-
-    def include(header)
-      @inc << "#include #{header}"
-    end
-
-    ##
     # Specifies that the the ruby.h header should be included *after* custom
     # header(s) instead of before them.
 
@@ -876,96 +596,9 @@ VALUE #{method}_equals(VALUE value) {
       @include_ruby_first = false
     end
 
-    ##
-    # Adds any amount of text/code to the source
-
-    def prefix(code)
-      @pre << code
-    end
-
-    ##
-    # Adds a C function to the source, including performing automatic
-    # type conversion to arguments and the return value. The Ruby
-    # method name can be overridden by providing method_name. Unknown
-    # type conversions can be extended by using +add_type_converter+.
-
-    def c src, options = {}
-      options = {
-        :expand_types => true,
-      }.merge options
-      self.generate src, options
-    end
-
-    ##
-    # Same as +c+, but adds a class function.
-
-    def c_singleton src, options = {}
-      options = {
-        :expand_types => true,
-        :singleton    => true,
-      }.merge options
-      self.generate src, options
-    end
-
-    ##
-    # Adds a raw C function to the source. This version does not
-    # perform any type conversion and must conform to the ruby/C
-    # coding conventions.  The Ruby method name can be overridden
-    # by providing method_name.
-
-    def c_raw src, options = {}
-      self.generate src, options
-    end
-
-    ##
-    # Same as +c_raw+, but adds a class function.
-
-    def c_raw_singleton src, options = {}
-      options = {
-        :singleton => true,
-      }.merge options
-      self.generate src, options
-    end
 
   end # class Inline::C
 end # module Inline
-
-module Inliner
-  ##
-  # Extends the Module class to have an inline method. The default
-  # language/builder used is C, but can be specified with the +lang+
-  # parameter.
-
-  def self.inline(target_class, lang = :C, options={})
-    case options
-    when TrueClass, FalseClass then
-      warn "WAR\NING: 2nd argument to inline is now a hash, changing to {:testing=>#{options}}" unless options
-      options = { :testing => options  }
-    when Hash
-      options[:testing] ||= false
-    else
-      raise ArgumentError, "BLAH"
-    end
-
-    builder_class = begin
-                      Inline.const_get(lang)
-                    rescue NameError
-                      require "inline/#{lang}"
-                      Inline.const_get(lang)
-                    end
-
-    builder = builder_class.new(target_class)
-
-    yield builder
-
-    unless options[:testing] then
-      unless builder.load_cache then
-        builder.build
-        builder.load
-      end
-    end
-  end
-end
 
 class File
 
